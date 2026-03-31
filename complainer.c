@@ -1,5 +1,9 @@
 #include <stdio.h>
 
+#define NONE
+
+
+
 /*
  nothing, to prevent invalid values. it also tells
  what is the current error_lines index, but when
@@ -43,18 +47,26 @@
 #define CHAR		97
 
 
-// external variables:
-int what_is_c, comment_state, its_a_scape;
+// NOTE: all char types in this program control
+// a state of something, like YES or NO
 
+// external variables:
+int what_is_c, q_error_line;
+char canprint;
 
 // external arrays:
-int error_lines[MAX_ERROR_LINES];
+int d_error_lines[MAX_ERROR_LINES];
 
 
 // functions syntax:
 int basic_filter(int c);
-int delimiters(int c, int line);
 
+int delimiters(int c, int line, int oppened);
+
+int quotes(int c, int line);
+char inside_quotes, doubleq, singleq, qerror_line;
+
+int comment(int c, int line, char comment_state);
 /*
 int quotes // include scape sequence
 int comments
@@ -62,15 +74,18 @@ int comments
 
 int main ()
 {
+	qerror_line = -1;
 	what_is_c = NOTHING;
-	comment_state = OUT;
-	its_a_scape = NO;
+	inside_quotes = NO;
 
-	int c, ctype, oppened, line;
+	char ctype, comment_state, its_a_scape;
+	int c, oppened, line;
 
 	c = '\0';
-	openned = ctype = NOTHING;
 	line = 0;
+	openned = ctype = NOTHING;
+	comment_state = OUT;
+	its_a_scape = NO;
 
 	while ((c = getchar()) != EOF)
 	{
@@ -82,19 +97,32 @@ int main ()
 		// who will handle "¢"
 		if (ctype == NORMAL_CHAR)
 		{
-			canprint = printable;
+			canprint = YES;
 		}
-		else if (ctype == DELIMITER && comment_state == OUT && its_a_scape == NO)
+		else if (ctype == DELIMITER && comment_state == OUT && its_a_scape == NO && inside_quotes == NO)
 		{
-			delimiter(c, line);
+			oppened = delimiter(c, line, oppened);
 		}
-		else if (ctype == QUOTES)
+		else if (ctype == QUOTES && comment_state == OUT && its_a_scape == NO)
 		{
 			quotes(c, line);
 		}
-		else if (ctype == COMMENT)
+		else if (ctype == COMMENT && inside_quotes == NO)
 		{
-			comment(c, line);
+			comment_state = comment(c, line, comment_state);
+		}
+
+		// checking scape
+		if (what_is_c == SCAPE)
+		{
+			if (c == '\\' && inside_quotes == YES)
+			{
+				its_a_scape = YES;
+			}
+			else if (its_a_scape == YES)
+			{
+				its_a_scape = NO;
+			}
 		}
 
 		if (canprint == YES)
@@ -144,6 +172,13 @@ int basic_filter(int c)
 		return QUOTES;
 	}
 
+	// scape
+	else if (c == '\\')
+	{
+		what_is_c SCAPE;
+		return QUOTES;
+	}
+
 	// comment
 	else if (c == '/')
 	{
@@ -155,11 +190,6 @@ int basic_filter(int c)
 		what_is_c = ASTERISK;
 		return COMMENT;
 	}
-	else if (c == '\\')
-	{
-		what_is_c SCAPE;
-		return COMMENT;
-	}
 
 	// normal characters
 	else
@@ -169,7 +199,7 @@ int basic_filter(int c)
 	}
 }
 
-void delimiter(int c, int line, int oppened)
+int delimiter(int c, int line, int oppened)
 {
 	if (what_is_c == PARENTHESES)
 	{
@@ -228,12 +258,38 @@ void delimiter(int c, int line, int oppened)
 	return openned;
 }
 
+void quotes(int c, int line)
+{
+	if (its_a_scape == NO)
+	{
+		// double quotes
+		if (c == '"' && quotes_type == NOTHING)
+		{
+			qerror_lines = line;
+			quotes_type = DOUBLE;
+			inside_quotes = YES;
+		}
+		else if (c == '"' && quotes_type == DOUBLE)
+		{
+			qerror_line = -1;
+			quotes_type = NOTHING;
+			inside_quotes = NO;
+		}
 
-
-
-
-
-
-
+		// single quotes
+		else if (c == '\'' && quotes_type == NOTHING)
+		{
+			qerror_line = line;
+			quotes_type = SINGLE;
+			inside_quotes = YES;
+		}
+		else if (c == '\'' && quotes_type == SINGLE)
+		{
+			qerror_line = -1;
+			quotes_type = NOTHING;
+			inside_quotes = NO;
+		}
+	}
+}
 
 
