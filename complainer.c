@@ -16,7 +16,7 @@
 #define OUT	0
 
 // max values:
-#define MAX_ERROR_LINES	7
+#define MAX_D_ERROR_LINES	7
 
 // ctypes values:	\\symbolic numbers:
 #define NORMAL_CHAR	65
@@ -50,35 +50,37 @@ char canprint;
 
 // functions syntax:
 int basic_filter(int c);
-char what_is_c;
+int what_is_c;
 
 int delimiter(int c, int line, int openned, int d_error_lines[]);
 
 int quotes(int line, int qerror_line);
 char inside_quotes, quotes_type;
 
-int comment(int line, int cerror_line, char ctype);
-char bar, second_bar, asterisk, second_asterisk, comment_state;
+int comment(int line, char ctype);
+char bar, second_bar, asterisk, second_asterisk, comment_state, cerror_line;
 
+void parser(int openned, int d_error_lines[], int qerror_line);
+char found_error; // it also uses cerror_line
 
 
 int main ()
 {
 	// external
-	what_is_c = NOTHING;
-	inside_quotes = NO;
+	cerror_line = what_is_c = NOTHING;
+	found_error = inside_quotes = NO;
 	comment_state = asterisk = bar = second_bar = OUT;
 
 	// local
-	int d_error_lines[MAX_ERROR_LINES];
+	int d_error_lines[MAX_D_ERROR_LINES];
 
-	int c, openned, line, qerror_line, cerror_line;
+	int c, openned, line, qerror_line;
 	char ctype, its_a_scape;
 
 	c = '\0';
 	line = 0;
 
-	cerror_line = qerror_line = openned = ctype = NOTHING;
+	qerror_line = openned = ctype = NOTHING;
 	its_a_scape = NO;
 
 	while ((c = getchar()) != EOF)
@@ -87,6 +89,20 @@ int main ()
 
 		// tells what is "c"
 		ctype = basic_filter(c);
+
+		// outputing for visual debbug
+		if (comment_state == OUT && bar == NO)
+		{
+			putchar(c);
+		}
+		else if (comment_state == OUT && bar == YES)
+		{
+			if (what_is_c != BAR && what_is_c != ASTERISK)
+			{
+				putchar('/');
+				putchar(c);
+			}
+		}
 
 		// who will handle "¢"
 		if (ctype == DELIMITER && comment_state == OUT && inside_quotes == NO)
@@ -99,7 +115,7 @@ int main ()
 		}
 		else if (ctype == COMMENT && inside_quotes == NO)
 		{
-			cerror_line = comment(line, cerror_line, ctype);
+			cerror_line = comment(line, ctype);
 		}
 
 		// checking scape
@@ -114,17 +130,14 @@ int main ()
 				its_a_scape = YES;
 			}
 		}
-
-		// outputing for visual debbug
-		if (comment_state == OUT)
-		{
-			putchar(c);
-		}
 	}
 
-	// parser(oppened, d_error_lines, qerror_line, cerror_line);
+	parser(openned, d_error_lines, qerror_line);
 
-	putchar('\n');
+	if (found_error == NO)
+	{
+		putchar('\n');
+	}
 	return 0;
 }
 
@@ -205,7 +218,7 @@ int delimiter(int c, int line, int openned, int d_error_lines[]) // d_error_line
 		{
 			++openned;
 
-			if (openned < MAX_ERROR_LINES)
+			if (openned < MAX_D_ERROR_LINES)
 			{
 				d_error_lines[openned] = line;
 			}
@@ -223,7 +236,7 @@ int delimiter(int c, int line, int openned, int d_error_lines[]) // d_error_line
 		{
 			++openned;
 
-			if (openned < MAX_ERROR_LINES)
+			if (openned < MAX_D_ERROR_LINES)
 			{
 				d_error_lines[openned] = line;
 			}
@@ -241,7 +254,7 @@ int delimiter(int c, int line, int openned, int d_error_lines[]) // d_error_line
 		{
 			++openned;
 
-			if (openned < MAX_ERROR_LINES)
+			if (openned < MAX_D_ERROR_LINES)
 			{
 				d_error_lines[openned] = line;
 			}
@@ -289,7 +302,7 @@ int quotes(int line, int qerror_line)
 	return qerror_line;
 }
 
-int comment(int line, int cerror_line, char ctype)
+int comment(int line, char ctype)
 {
 	// discarding fake calls
 	if (what_is_c == NEW_LINE && comment_state == OUT)
@@ -358,4 +371,39 @@ int comment(int line, int cerror_line, char ctype)
 	}
 
 	return comment_state;
+}
+
+void parser(int openned, int d_error_lines[], int qerror_line)
+{
+	int i;
+
+	if (openned != NOTHING)
+	{
+		found_error = YES;
+
+		for (i = 0; i <= openned; ++i)
+		{
+			printf("========\n");
+			printf("error type: DELIMITER\n");
+			printf("error line:  %d\n", d_error_lines[i]);
+		}
+	}
+
+	if (qerror_line != NOTHING)
+	{
+		found_error = YES;
+
+		printf("========\n");
+		printf("error type: quotes\n");
+		printf("error line: %d", qerror_line);
+	}
+
+	if (cerror_line != NOTHING)
+	{
+		found_error = YES;
+
+		printf("========\n");
+		printf("error type: comment\n");
+		printf("error line: %d", cerror_line);
+	}
 }
