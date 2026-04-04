@@ -46,7 +46,7 @@
 */
 
 // external variables:
-char canprint;
+char canprint, its_a_scape;
 
 // functions syntax:
 int basic_filter(int c);
@@ -57,8 +57,8 @@ int delimiter(int c, int line, int openned, int d_error_lines[]);
 int quotes(int line, int qerror_line);
 char inside_quotes, quotes_type;
 
-int comment(int line, char ctype);
-char bar, second_bar, asterisk, second_asterisk, comment_state, cerror_line;
+int comment(int line, char ctype, char comment_state);
+char bar, second_bar, asterisk, second_asterisk, cerror_line, canprint;
 
 void parser(int openned, int d_error_lines[], int qerror_line);
 char found_error; // it also uses cerror_line
@@ -67,35 +67,37 @@ char found_error; // it also uses cerror_line
 int main ()
 {
 	// external
-	cerror_line = what_is_c = NOTHING;
-	found_error = inside_quotes = NO;
-	comment_state = asterisk = bar = second_bar = OUT;
+	cerror_line = quotes_type = what_is_c = NOTHING;
+	its_a_scape = found_error = inside_quotes = NO;
+	asterisk = bar = second_bar = OUT;
 
 	// local
 	int d_error_lines[MAX_D_ERROR_LINES];
 
 	int c, openned, line, qerror_line;
-	char ctype, its_a_scape;
+	char ctype, comment_state;
 
 	c = '\0';
-	line = 0;
+	line = 1;
+	printf("%d |", line);
 
 	qerror_line = openned = ctype = NOTHING;
-	its_a_scape = NO;
+	comment_state = OUT;
 
 	while ((c = getchar()) != EOF)
 	{
-		++line;
+		canprint = YES;
+		if (what_is_c == NEW_LINE)
+		{
+			++line;
+			printf("%d |", line);
+		}
 
 		// tells what is "c"
 		ctype = basic_filter(c);
 
 		// outputing for visual debbug
-		if (comment_state == OUT && bar == NO)
-		{
-			putchar(c);
-		}
-		else if (comment_state == OUT && bar == YES)
+		if (comment_state == OUT && bar == YES)
 		{
 			if (what_is_c != BAR && what_is_c != ASTERISK)
 			{
@@ -113,23 +115,28 @@ int main ()
 		{
 			qerror_line = quotes(line, qerror_line);
 		}
-		else if (ctype == COMMENT && inside_quotes == NO)
+
+		if (inside_quotes == NO)
 		{
-			cerror_line = comment(line, ctype);
+			comment_state = comment(line, ctype, comment_state);
+		}
+
+		// also visual debug
+		if (comment_state == OUT && bar == NO && canprint == YES)
+		{
+			putchar(c);
 		}
 
 		// checking scape
-		if (ctype == SCAPE)
+		if (its_a_scape == YES)
 		{
-			if (its_a_scape == YES)
-			{
-				its_a_scape = NO;
-			}
-			else
-			{
-				its_a_scape = YES;
-			}
+			its_a_scape = NO;
 		}
+		else if (ctype == SCAPE)
+		{
+			its_a_scape = YES;
+		}
+
 	}
 
 	parser(openned, d_error_lines, qerror_line);
@@ -149,6 +156,14 @@ int basic_filter(int c)
 	order, making the functions easy to read
 */
 
+
+	// scape
+	if (c == '\\' && inside_quotes == YES)
+	{
+		what_is_c = SCAPE;
+		return SCAPE;
+	}
+
 	// delimiters
 	if (c == '(' || c == ')')
 	{
@@ -167,7 +182,7 @@ int basic_filter(int c)
 	}
 
 	// quotes
-	else if (c == '"')
+	if (c == '"')
 	{
 		what_is_c = DOUBLE_QUOTES;
 		return QUOTES;
@@ -178,15 +193,8 @@ int basic_filter(int c)
 		return QUOTES;
 	}
 
-	// scape
-	else if (c == '\\' && inside_quotes == YES)
-	{
-		what_is_c = SCAPE;
-		return SCAPE;
-	}
-
 	// comment
-	else if (c == '/')
+	if (c == '/')
 	{
 		what_is_c = BAR;
 		return COMMENT;
@@ -203,11 +211,8 @@ int basic_filter(int c)
 	}
 
 	// normal characters
-	else
-	{
-		what_is_c = CHAR;
-		return NORMAL_CHAR;
-	}
+	what_is_c = CHAR;
+	return NORMAL_CHAR;
 }
 
 int delimiter(int c, int line, int openned, int d_error_lines[]) // d_error_lines[example[0]] = line
@@ -302,7 +307,7 @@ int quotes(int line, int qerror_line)
 	return qerror_line;
 }
 
-int comment(int line, char ctype)
+int comment(int line, char ctype, char comment_state)
 {
 	// discarding fake calls
 	if (what_is_c == NEW_LINE && comment_state == OUT)
@@ -314,15 +319,8 @@ int comment(int line, char ctype)
 		return comment_state;
 	}
 
-	// comment trigger
-	if (what_is_c == BAR && comment_state == OUT)
-	{
-		bar = YES;
-		return comment_state;
-	}
-
 	// comment untrigger
-	else if (bar == YES && ctype != COMMENT)
+	if (bar == YES && ctype != COMMENT)
 	{
 		bar = NO;
 		return comment_state;
@@ -344,9 +342,17 @@ int comment(int line, char ctype)
 		return comment_state;
 	}
 
+	// comment trigger
+	else if (what_is_c == BAR && comment_state == OUT)
+	{
+		bar = YES;
+		return comment_state;
+	}
+
 	// long comments type
 	else if (bar == YES && what_is_c == ASTERISK)
 	{
+		bar = NO;
 		asterisk = YES;
 		comment_state = IN;
 		cerror_line = line;
@@ -359,9 +365,11 @@ int comment(int line, char ctype)
 	}
 	else if (second_asterisk == YES && what_is_c == BAR)
 	{
-		bar = asterisk = second_asterisk = NO;
+		bar = NO;
+		asterisk = second_asterisk = NO;
 		comment_state = OUT;
 		cerror_line = NOTHING;
+		canprint = NO;
 		return comment_state;
 	}
 	else if (second_asterisk == YES && what_is_c != BAR)
@@ -395,7 +403,7 @@ void parser(int openned, int d_error_lines[], int qerror_line)
 
 		printf("========\n");
 		printf("error type: quotes\n");
-		printf("error line: %d", qerror_line);
+		printf("error line: %d\n", qerror_line);
 	}
 
 	if (cerror_line != NOTHING)
@@ -404,6 +412,6 @@ void parser(int openned, int d_error_lines[], int qerror_line)
 
 		printf("========\n");
 		printf("error type: comment\n");
-		printf("error line: %d", cerror_line);
+		printf("error line: %d\n", cerror_line);
 	}
 }
